@@ -113,8 +113,8 @@ port(
  video_clk      : out std_logic;
  video_csync    : out std_logic;
  video_blankn   : out std_logic;
--- video_hs     : out std_logic;
--- video_vs     : out std_logic;
+ video_hs       : out std_logic; -- VGA
+ video_vs       : out std_logic; -- VGA
  audio          : out std_logic_vector(9 downto 0);
 
  b_test         : in std_logic;
@@ -521,8 +521,8 @@ bggraphx_addr <= 	'1' & bgtile_num_r(6 downto 0) & not hcnt(2) &     vcnt(2 down
 									'1' & bgtile_num_r(6 downto 0) &     hcnt(2) & not vcnt(2 downto 0);
 
 bgpalette_addr <= bgtile_color_r(5 downto 0) &
-									bggraphx_do(to_integer(unsigned('1' & (hcnt(1 downto 0)) xor (flip_h & flip_h)))) &
-									bggraphx_do(to_integer(unsigned('0' & (hcnt(1 downto 0)) xor (flip_h & flip_h)))); 
+									bggraphx_do(to_integer(unsigned('1' & ((hcnt(1 downto 0)) xor (flip_h & flip_h))))) &
+									bggraphx_do(to_integer(unsigned('0' & ((hcnt(1 downto 0)) xor (flip_h & flip_h))))); -- RB" fixed Vivado error operands of logical operator '^' have different lengths (3 vs. 2)
 
 bgbits <= bgpalette_do(3 downto 0);
 
@@ -970,8 +970,8 @@ clk     => clock_18,
 enable  => ena_vidgen,
 hcnt    => hcnt,
 vcnt    => vcnt,
-hsync   => open,
-vsync   => open,
+hsync   => video_hs, -- VGA
+vsync   => video_vs, -- VGA
 csync   => video_csync,
 blankn  => video_blankn
 );
