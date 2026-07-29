@@ -845,6 +845,7 @@ begin
 		start1_r <= start1;
 		start2_r <= start2;
 		if coin = '1' and coin_r = '0' then 
+			cs51XX_credit_mode <= '1';     -- <-- RB 7/2026 - added by Big Pickle: re-enable credit mode on coin insert
 			if credit_bcd_0 = "1001" then 
 				if credit_bcd_1 /= "1001" then
 					credit_bcd_1 <= credit_bcd_1 + "0001";
