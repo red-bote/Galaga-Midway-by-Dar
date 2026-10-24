@@ -1,0 +1,33 @@
+# Vivado fixes to MiST scandoubler.v (mist-devel/mist-modules@147aa5c), which Vivado
+# reads as Verilog-2001: name the two clocked blocks (aaa1, aaa2) that declare local
+# regs (HDL 9-345, declarations not allowed in unnamed block); declare sd_buffer with
+# a full range (single-value size rejected).
+--- a/contrib/third_party/mist/scandoubler.v
++++ b/vhdl_galaga_rev_0_3_2018_05_06/basys3/galaga_basys3.srcs/sources_1/imports/mist/scandoubler.v
+@@ -121,7 +121,7 @@
+ // ==================================================================
+ 
+ // 2 lines of 2**HCNT_WIDTH pixels 3*COLOR_DEPTH bit RGB
+-(* ramstyle = "no_rw_check" *) reg [COLOR_DEPTH*3-1:0] sd_buffer[2*2**HCNT_WIDTH];
++(* ramstyle = "no_rw_check" *) reg [COLOR_DEPTH*3-1:0] sd_buffer[0:2*2**HCNT_WIDTH-1];
+ 
+ // use alternating sd_buffers when storing/reading data   
+ reg        line_toggle;
+@@ -131,7 +131,7 @@
+ reg  [HCNT_WIDTH-1:0] hs_rise;
+ reg  [HCNT_WIDTH-1:0] hcnt;
+ 
+-always @(posedge clk_sys) begin
++always @(posedge clk_sys) begin :aaa1
+ 	reg hsD, vsD;
+ 
+ 	if(ce_x1) begin
+@@ -166,7 +166,7 @@
+ reg        hs_sd;
+ 
+ // timing generation runs 32 MHz (twice the input signal analysis speed)
+-always @(posedge clk_sys) begin
++always @(posedge clk_sys) begin	:aaa2
+ 	reg hsD;
+ 
+ 	if(ce_x2) begin

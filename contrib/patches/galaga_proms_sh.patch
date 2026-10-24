@@ -1,0 +1,37 @@
+# New file: make_galaga_proms.sh, a bash port of make_galaga_proms.bat used by
+# contrib/tools/user/roms.sh. Shipped as a patch so that make check reproduces it.
+--- /dev/null
++++ b/vhdl_galaga_rev_0_3_2018_05_06/tools/galaga_unzip/make_galaga_proms.sh
+@@ -0,0 +1,32 @@
++#!/bin/bash
++# Port of make_galaga_proms.bat for the Basys3 build. Run from this
++# directory (the unzipped galaga.zip + galagamw.zip) by contrib/tools/roms.sh, which sets:
++#   MAKE_VHDL_PROM  path of the compiled make_vhdl_prom
++#   PROM_DIR        output directory for the PROM VHDL
++# make_vhdl_prom names the entity after its output argument, so it runs inside
++# PROM_DIR with bare output file names.
++# galagamw.zip provides the program and graphics ROMs (3200a.bin ... 2800l.bin);
++# galaga.zip the PROMs and the 54xx program.
++
++set -euo pipefail
++
++: "${MAKE_VHDL_PROM:?}" "${PROM_DIR:?}"
++roms="$(pwd)"
++tmp="$(mktemp -d)"
++trap 'rm -rf "$tmp"' EXIT
++
++cat 3200a.bin 3300b.bin 3400c.bin 3500d.bin > "$tmp/galaga_cpu1.bin"
++cat 2800l.bin 2700k.bin > "$tmp/sp_graphx.bin"
++
++cd "$PROM_DIR"
++"$MAKE_VHDL_PROM" "$tmp/galaga_cpu1.bin" galaga_cpu1.vhd
++"$MAKE_VHDL_PROM" "$roms/3600e.bin"      galaga_cpu2.vhd
++"$MAKE_VHDL_PROM" "$roms/3700g.bin"      galaga_cpu3.vhd
++"$MAKE_VHDL_PROM" "$roms/2600j.bin"      bg_graphx.vhd
++"$MAKE_VHDL_PROM" "$tmp/sp_graphx.bin"   sp_graphx.vhd
++"$MAKE_VHDL_PROM" "$roms/prom-5.5n"      rgb.vhd
++"$MAKE_VHDL_PROM" "$roms/prom-4.2n"      bg_palette.vhd
++"$MAKE_VHDL_PROM" "$roms/prom-3.1c"      sp_palette.vhd
++"$MAKE_VHDL_PROM" "$roms/prom-2.5c"      sound_seq.vhd
++"$MAKE_VHDL_PROM" "$roms/prom-1.1d"      sound_samples.vhd
++"$MAKE_VHDL_PROM" "$roms/54xx.bin"       cs54xx_prog.vhd

@@ -1,0 +1,571 @@
+--- a/vhdl_galaga_rev_0_3_2018_05_06/rtl_dar/galaga_de10_lite.vhd
++++ b/vhdl_galaga_rev_0_3_2018_05_06/basys3/galaga_basys3.srcs/sources_1/new/galaga_basys3.vhd
+@@ -1,6 +1,12 @@
+ ---------------------------------------------------------------------------------
+--- DE10_lite Top level for Galaga Midway by Dar (darfpga@aol.fr) (06/11/2017)
+--- http://darfpga.blogspot.fr
++-- Basys 3 top level for Galaga by Red~Bote, derived from galaga_de10_lite.vhd by
++-- Dar (darfpga@aol.fr, http://darfpga.blogspot.fr); see that file for its
++-- history.
++---------------------------------------------------------------------------------
++--
++-- release rev 01 : initial Basys 3 release
++--  (23/10/2026)
++--
+ ---------------------------------------------------------------------------------
+ -- Educational use only
+ -- Do not redistribute synthetized file with roms
+@@ -8,31 +14,33 @@
+ -- Use at your own risk
+ ---------------------------------------------------------------------------------
+ -- Main features :
+---  PS2 keyboard input
+---  PWM audio output
++--  PS2 keyboard input @onboard USB HID (PS/2 emulation)
++--  Joystick input     @JXADC pins 1/2/7 = right/left/fire (active low)
++--  Audio pwm output   @PmodAMP2 on JA pins 1/2/4; sw15 = audio disable, sw14 = gain
++--  31kHz VGA via the MiST scandoubler; sw13 = 15kHz TV (csync on hs)
++--  Buttons and JXADC fire debounced (14ms)
+ --
+--- Uses 1 pll for 18MHz and 11MHz generation from 50MHz
++-- Uses 1 MMCM (clk_wiz_0) for 36.864MHz (clock_18 = /2) from 100MHz
+ --
+--- Board key :
+---      0 : reset
++-- Board buttons :
++--   btnC : reset game
++--   btnU, btnD : Add coin
++--   btnL : Start 1 player
++--   btnR : Start 2 players
+ --
+--- Keyboard inputs :
+---   F3 : Add coin
+---   F2 : Start 2 players
+---   F1 : Start 1 player
+---   SPACE       : Fire player 1 & 2
+---   RIGHT arrow : Move right player 1 & 2
+---   LEFT arrow  : Move left player 1 & 2
++-- Board switches :
++--   sw12 : b_test (service/test mode) dip (down = default '1', up inverts)
++--   sw13 : 0 = 31kHz VGA, 1 = 15kHz TV (csync on hs)
+ --
+--- Dip switch and other details : see galaga.vhd
+-
+----------------------------------------------------------------------------------
+----------------------------------------------------------------------------------
+---   DE10_lite Top version support digital audio out sgtl5000 support with
+---     teensy audio shield on top of arduino usb host shield
++-- Keyboard inputs (MAME defaults) :
++--   5, 6 : Add coin
++--   2 : Start 2 players
++--   1 : Start 1 player
++--   LEFT CTRL   : fire
++--   RIGHT arrow : move right
++--   LEFT  arrow : move left
+ --
+---   BEWARE : arduino shield has to be modified (see instruction on my blog)
+---   For more detail see xevious_de10_lite
++-- Dip switch and other details : see galaga.vhd
+ ---------------------------------------------------------------------------------
+ 
+ library ieee;
+@@ -41,35 +49,16 @@
+ use ieee.numeric_std.all;
+ 
+ library work;
+---use work.usb_report_pkg.all;
+ 
+-entity galaga_de10_lite is
++entity galaga_basys3 is
+ port(
+-  max10_clk1_50  : in std_logic;
+--- max10_clk2_50  : in std_logic;
+--- adc_clk_10     : in std_logic;
+-  ledr           : out std_logic_vector(9 downto 0);
+-  key            : in std_logic_vector(1 downto 0);
+-  sw             : in std_logic_vector(9 downto 0);
+-
+--- dram_ba    : out std_logic_vector(1 downto 0);
+--- dram_ldqm  : out std_logic;
+--- dram_udqm  : out std_logic;
+--- dram_ras_n : out std_logic;
+--- dram_cas_n : out std_logic;
+--- dram_cke   : out std_logic;
+--- dram_clk   : out std_logic;
+--- dram_we_n  : out std_logic;
+--- dram_cs_n  : out std_logic;
+--- dram_dq    : inout std_logic_vector(15 downto 0);
+--- dram_addr  : out std_logic_vector(12 downto 0);
+-
+--- hex0 : out std_logic_vector(7 downto 0);
+--- hex1 : out std_logic_vector(7 downto 0);
+--- hex2 : out std_logic_vector(7 downto 0);
+--- hex3 : out std_logic_vector(7 downto 0);
+--- hex4 : out std_logic_vector(7 downto 0);
+--- hex5 : out std_logic_vector(7 downto 0);
++  clk            : in std_logic;
++  btnC           : in std_logic;
++  btnU           : in std_logic;
++  btnD           : in std_logic;
++  btnL           : in std_logic;
++  btnR           : in std_logic;
++  sw             : in std_logic_vector(15 downto 0);
+ 
+   vga_r     : out std_logic_vector(3 downto 0);
+   vga_g     : out std_logic_vector(3 downto 0);
+@@ -77,83 +66,136 @@
+   vga_hs    : out std_logic;
+   vga_vs    : out std_logic;
+ 
+--- gsensor_cs_n : out   std_logic;
+--- gsensor_int  : in    std_logic_vector(2 downto 0);
+--- gsensor_sdi  : inout std_logic;
+--- gsensor_sdo  : inout std_logic;
+--- gsensor_sclk : out   std_logic;
+-
+--- arduino_io      : inout std_logic_vector(15 downto 0);
+--- arduino_reset_n : inout std_logic;
+-
+-  gpio         : inout std_logic_vector(35 downto 0)
++  JXADC            : in  std_logic_vector(4 downto 0);
++  ps2_clk          : in  std_logic;
++  ps2_dat          : in  std_logic;
++  O_PMODAMP2_AIN   : out std_logic;
++  O_PMODAMP2_GAIN  : out std_logic;
++  O_PMODAMP2_SHUTD : out std_logic
+ );
+-end galaga_de10_lite;
++end galaga_basys3;
+ 
+-architecture struct of galaga_de10_lite is
++architecture struct of galaga_basys3 is
+ 
+-  signal clock_18  : std_logic;
++  signal clock_36  : std_logic;
++  signal clock_18  : std_logic := '0';
+   signal clock_18n : std_logic;
+-  signal clock_11  : std_logic;
+-  signal clock_9   : std_logic;
++  signal clock_12  : std_logic := '0'; -- scandoubler clk_sys (36.864MHz / 3)
++  signal slot      : std_logic_vector(2 downto 0) := "000";
++  signal db_in     : std_logic_vector(4 downto 0);
++  signal btn_db    : std_logic_vector(4 downto 0) := (others => '0');
++  type btn_cnt_t is array (0 to 4) of unsigned(17 downto 0);
++  signal btn_cnt   : btn_cnt_t := (others => (others => '0'));
+   signal reset     : std_logic;
+-
+-  signal max3421e_clk : std_logic;
++  signal mmcm_locked : std_logic;
+ 
+   signal r         : std_logic_vector(2 downto 0);
+   signal g         : std_logic_vector(2 downto 0);
+   signal b         : std_logic_vector(1 downto 0);
+   signal csync     : std_logic;
+   signal blankn    : std_logic;
++  signal hsync     : std_logic;
++  signal vsync     : std_logic;
++  signal tv15Khz_mode : std_logic;
++
++  signal clock_6   : std_logic := '0'; -- pixel enable (ce_x1)
++  signal scanlines : std_logic_vector(1 downto 0) := "00";
++  signal ce_x2     : std_logic := '1';
++  signal video_ri  : std_logic_vector(5 downto 0);
++  signal video_gi  : std_logic_vector(5 downto 0);
++  signal video_bi  : std_logic_vector(5 downto 0);
++  signal vga_ro    : std_logic_vector(5 downto 0);
++  signal vga_go    : std_logic_vector(5 downto 0);
++  signal vga_bo    : std_logic_vector(5 downto 0);
++  signal vga_hs_o  : std_logic;
++  signal vga_vs_o  : std_logic;
+ 
+   signal audio           : std_logic_vector( 9 downto 0);
+   signal pwm_accumulator : std_logic_vector(12 downto 0);
+-
+-  alias reset_n         : std_logic is key(0);
+-  alias ps2_clk         : std_logic is gpio(35); --gpio(0);
+-  alias ps2_dat         : std_logic is gpio(34); --gpio(1);
+-  alias pwm_audio_out_l : std_logic is gpio(1);  --gpio(2);
+-  alias pwm_audio_out_r : std_logic is gpio(3);  --gpio(3);
++  -- typed concatenations: '&' inside a type conversion is ambiguous (Synth 8-944)
++  signal pwm_prev        : std_logic_vector(12 downto 0);
++  signal audio_x         : std_logic_vector(11 downto 0);
++
++  -- 2-FF synchronizers for the asynchronous inputs
++  signal ps2_clk_meta, ps2_clk_s : std_logic := '1';
++  signal ps2_dat_meta, ps2_dat_s : std_logic := '1';
++  signal jxadc_meta, jxadc_s     : std_logic_vector(4 downto 0) := (others => '1');
++  signal btn_meta, btn_s         : std_logic_vector(3 downto 0) := (others => '0'); -- U, D, L, R
++  attribute ASYNC_REG : string;
++  attribute ASYNC_REG of ps2_clk_meta, ps2_clk_s, ps2_dat_meta, ps2_dat_s : signal is "TRUE";
++  attribute ASYNC_REG of jxadc_meta, jxadc_s, btn_meta, btn_s : signal is "TRUE";
+ 
+   signal kbd_intr      : std_logic;
+   signal kbd_scancode  : std_logic_vector(7 downto 0);
++  signal kbd_rel        : std_logic := '0';
++  -- kbd_key : 0 up, 1 down, 2 left, 3 right, 4 left ctrl, 5 left alt,
++  --           6 '1', 7 '2', 8 '5', 9 '6', 10 '9'
++  signal kbd_key        : std_logic_vector(10 downto 0) := (others => '0');
+   signal joyPCFRLDU    : std_logic_vector(7 downto 0);
+ 
+-  -- signal start : std_logic := '0';
+-  -- signal usb_report : usb_report_t;
+-  -- signal new_usb_report : std_logic := '0';
+-
+-  -- signal rom_addr : std_logic_vector(16 downto 0);
+-  -- signal rom_do   : std_logic_vector( 7 downto 0);
+-
+-  -- signal cnt_1us     : integer range 0 to 49 := 49;
+-  -- signal clk_1us     : std_logic;
+-  -- signal sample_data  : std_logic_vector(31 downto 0);
++  constant B_TEST_DEFAULT : std_logic := '1';
++  signal b_test_in        : std_logic;
+ 
+ begin
+ 
+-  reset <= not reset_n;
++  -- btnC resets the MMCM; the core is held in reset until the MMCM locks
++  reset <= btnC or not mmcm_locked;
+   clock_18n <= not clock_18;
+ 
+-  --start <= not key(1);
+-  -- tv15Khz_mode <= sw();
++  tv15Khz_mode <= sw(13);
++  b_test_in    <= B_TEST_DEFAULT xor sw(12); -- dip on spare sw12, down = default
+ 
+-  -- arduino_io not used pins
+-  --arduino_io(7) <= '1'; -- to usb host shield max3421e RESET
+-  --arduino_io(8) <= 'Z'; -- from usb host shield max3421e GPX
+-  --arduino_io(9) <= 'Z'; -- from usb host shield max3421e INT
+-  --arduino_io(13) <= 'Z'; -- not used
+-  --arduino_io(14) <= 'Z'; -- not used
+-
+-  -- Clock 18MHz for galaga core, 11MHz for keyboard
+-  clk_11_18 : entity work.max10_pll_18M_11M
++  -- Clock 36.864MHz, halved to clock_18 for galaga core
++  clocks : entity work.clk_wiz_0
+   port map(
+-    inclk0 => max10_clk1_50,
+-    c0 => clock_18,
+-    c1 => clock_11,
+-    locked => open --pll_locked
++    clk_in1  => clk,
++    clk_out1 => clock_36,
++    reset    => btnC,
++    locked   => mmcm_locked
+   );
+ 
++  process (reset, clock_36)
++  begin
++    if reset='1' then
++      clock_18  <= '0';
++    else
++      if rising_edge(clock_36) then
++        clock_18  <= not clock_18;
++      end if;
++    end if;
++  end process;
++
++  -- synchronize asynchronous inputs to the core clock
++  process(clock_18)
++  begin
++    if rising_edge(clock_18) then
++      ps2_clk_meta <= ps2_clk;      ps2_clk_s <= ps2_clk_meta;
++      ps2_dat_meta <= ps2_dat;      ps2_dat_s <= ps2_dat_meta;
++      jxadc_meta   <= JXADC;        jxadc_s   <= jxadc_meta;
++      btn_meta     <= btnU & btnD & btnL & btnR;
++      btn_s        <= btn_meta;
++    end if;
++  end process;
++
++  -- debounce buttons and JXADC fire (pressed = '1'): stable for 2**18 clock_18 cycles
++  -- (14 ms)
++  db_in <= (not jxadc_s(4)) & btn_s;
++  process(clock_18)
++  begin
++    if rising_edge(clock_18) then
++      for i in 0 to 4 loop
++        if db_in(i) = btn_db(i) then
++          btn_cnt(i) <= (others => '0');
++        elsif btn_cnt(i) = (btn_cnt(i)'range => '1') then
++          btn_db(i)  <= db_in(i);
++          btn_cnt(i) <= (others => '0');
++        else
++          btn_cnt(i) <= btn_cnt(i) + 1;
++        end if;
++      end loop;
++    end if;
++  end process;
++
+   -- Galaga
+   galaga : entity work.galaga
+   port map(
+@@ -165,11 +207,11 @@
+     video_b      => b,
+     video_csync  => csync,
+     video_blankn => blankn,
+-  -- video_hs     => hsync,
+-  -- video_vs     => vsync,
++    video_hs     => hsync,
++    video_vs     => vsync,
+     audio        => audio,
+ 
+-    b_test       => '1',
++    b_test       => b_test_in,
+     b_svce       => '1',
+     coin         => joyPCFRLDU(7),
+     start1       => joyPCFRLDU(5),
+@@ -182,160 +224,120 @@
+     fire2        => joyPCFRLDU(4)
+   );
+ 
+-  vga_r <= r&'0'  when blankn = '1' else "0000";
+-  vga_g <= g&'0'  when blankn = '1' else "0000";
+-  vga_b <= b&"00" when blankn = '1' else "0000";
+-
+-  -- synchro composite/ synchro horizontale
+-  vga_hs <= csync;
+-  -- vga_hs <= csync when tv15Khz_mode = '1' else hsync;
+-  -- commutation rapide / synchro verticale
+-  vga_vs <= '1';
+-  -- vga_vs <= '1'   when tv15Khz_mode = '1' else vsync;
+-
+-  --sound_string <= "00" & audio & "000" & "00" & audio & "000";
+-
+-  -- get scancode from keyboard
+-  process (reset, clock_18)
++  -- scandoubler clocks : clock_12 (clk_sys) and clock_6 (ce_x1, 6.144MHz) from a
++  -- mod-6 counter on clock_36
++  process (clock_36)
+   begin
+-    if reset='1' then
+-      clock_9  <= '0';
+-    else
+-      if rising_edge(clock_18) then
+-        clock_9  <= not clock_9;
++    if rising_edge(clock_36) then
++      clock_12 <= '0';
++      if slot = "101" then
++        slot <= (others => '0');
++      else
++        slot <= slot + '1';
++      end if;
++      if slot = "100" or slot = "001" then
++        clock_6  <= not clock_6;
++        clock_12 <= '1';
+       end if;
+     end if;
+   end process;
+ 
++  -- adapt video to 6bits/color for the scandoubler, black during blank
++  video_ri <= r&"000"  when blankn = '1' else "000000";
++  video_gi <= g&"000"  when blankn = '1' else "000000";
++  video_bi <= b&"0000" when blankn = '1' else "000000";
+ 
+-  keyboard : entity work.io_ps2_keyboard
++  -- 31kHz VGA : MiST scandoubler
++  scandoubler : entity work.scandoubler
+   port map (
+-    clk       => clock_9,
+-    kbd_clk   => ps2_clk,
+-    kbd_dat   => ps2_dat,
+-    interrupt => kbd_intr,
+-    scancode  => kbd_scancode
++    clk_sys   => clock_12,
++    scanlines => scanlines,
++    ce_x1     => clock_6, -- pixel enable
++    ce_x2     => ce_x2,   -- clk_sys is 2 x pixel rate
++    hs_in     => hsync,
++    vs_in     => vsync,
++    r_in      => video_ri,
++    g_in      => video_gi,
++    b_in      => video_bi,
++    hs_out    => vga_hs_o,
++    vs_out    => vga_vs_o,
++    r_out     => vga_ro,
++    g_out     => vga_go,
++    b_out     => vga_bo
+   );
+ 
+-  -- translate scancode to joystick
+-  joystick : entity work.kbd_joystick
++  -- adapt video to 4bits/color only
++  vga_r <= video_ri(5 downto 2) when tv15Khz_mode = '1' else vga_ro(5 downto 2);
++  vga_g <= video_gi(5 downto 2) when tv15Khz_mode = '1' else vga_go(5 downto 2);
++  vga_b <= video_bi(5 downto 2) when tv15Khz_mode = '1' else vga_bo(5 downto 2);
++
++  -- synchro composite/ synchro horizontale
++  vga_hs <= csync when tv15Khz_mode = '1' else vga_hs_o;
++  -- commutation rapide / synchro verticale
++  vga_vs <= '1'   when tv15Khz_mode = '1' else vga_vs_o;
++
++  -- get scancode from keyboard
++
++  keyboard : entity work.io_ps2_keyboard
+   port map (
+-    clk         => clock_9,
+-    kbdint      => kbd_intr,
+-    kbdscancode => std_logic_vector(kbd_scancode),
+-    joyPCFRLDU  => joyPCFRLDU
++    clk       => clock_18, -- use same clock as main core
++    kbd_clk   => ps2_clk_s,
++    kbd_dat   => ps2_dat_s,
++    interrupt => kbd_intr,
++    scancode  => kbd_scancode
+   );
+ 
+-  -- usb host for max3421e arduino shield (modified)
+-
+-  --max3421e_clk <= clock_11;
+-  --usb_host : entity work.usb_host_max3421e
+-  --port map(
+-  -- clk     => max3421e_clk,
+-  -- reset   => reset,
+-  -- start   => start,
+-  --
+-  -- usb_report => usb_report,
+-  -- new_usb_report => new_usb_report,
+-  --
+-  -- spi_cs_n  => arduino_io(10),
+-  -- spi_clk   => arduino_io(13),
+-  -- spi_mosi  => arduino_io(11),
+-  -- spi_miso  => arduino_io(12)
+-  --);
+-
+-  -- usb keyboard report decoder
+-
+-  --keyboard_decoder : entity work.usb_keyboard_decoder
+-  --port map(
+-  -- clk     => max3421e_clk,
+-  --
+-  -- usb_report => usb_report,
+-  -- new_usb_report => new_usb_report,
+-  --
+-  -- joyBCPPFRLDU  => joyBCPPFRLDU
+-  --);
+-
+-  -- usb joystick decoder (konix drakkar wireless)
+-
+-  --joystick_decoder : entity work.usb_joystick_decoder
+-  --port map(
+-  -- clk     => max3421e_clk,
+-  --
+-  -- usb_report => usb_report,
+-  -- new_usb_report => new_usb_report,
+-  --
+-  -- joyBCPPFRLDU  => open --joyBCPPFRLDU
+-  --);
+-
+-  -- debug display
+-
+-  --ledr(8 downto 0) <= joyBCPPFRLDU;
+-  --
+-  --h0 : entity work.decodeur_7_seg port map(usb_report(to_integer(unsigned(sw))+2)(3 downto 0),hex0);
+-  --h1 : entity work.decodeur_7_seg port map(usb_report(to_integer(unsigned(sw))+2)(7 downto 4),hex1);
+-  --h2 : entity work.decodeur_7_seg port map(usb_report(to_integer(unsigned(sw))+1)(3 downto 0),hex2);
+-  --h3 : entity work.decodeur_7_seg port map(usb_report(to_integer(unsigned(sw))+1)(7 downto 4),hex3);
+-  --h4 : entity work.decodeur_7_seg port map(usb_report(to_integer(unsigned(sw))+0)(3 downto 0),hex4);
+-  --h5 : entity work.decodeur_7_seg port map(usb_report(to_integer(unsigned(sw))+0)(7 downto 4),hex5);
+-
+-  -- audio for sgtl5000
+-
+-  -- sample_data <= "00" & audio & "000" & "00" & audio & "000";
+-
+-  -- Clock 1us for ym_8910
+-  --p_clk_1us_p : process(max10_clk1_50)
+-  --begin
+-  --	if rising_edge(max10_clk1_50) then
+-  --		if cnt_1us = 0 then
+-  --			cnt_1us  <= 49;
+-  --			clk_1us  <= '1';
+-  --		else
+-  --			cnt_1us  <= cnt_1us - 1;
+-  --			clk_1us <= '0';
+-  --		end if;
+-  --	end if;
+-  --end process;
+-
+-  -- sgtl5000 (teensy audio shield on top of usb host shield)
+-
+-  --e_sgtl5000 : entity work.sgtl5000_dac
+-  --port map(
+-  -- clock_18   => clock_18,
+-  -- reset      => reset,
+-  -- i2c_clock  => clk_1us,
+-  --
+-  -- sample_data  => sample_data,
+-  --
+-  -- i2c_sda   => arduino_io(0), -- i2c_sda,
+-  -- i2c_scl   => arduino_io(1), -- i2c_scl,
+-  --
+-  -- tx_data   => arduino_io(2), -- sgtl5000 tx
+-  -- mclk      => arduino_io(4), -- sgtl5000 mclk
+-  --
+-  -- lrclk     => arduino_io(3), -- sgtl5000 lrclk
+-  -- bclk      => arduino_io(6), -- sgtl5000 bclk
+-  --
+-  -- -- debug
+-  -- hex0_di   => open, -- hex0_di,
+-  -- hex1_di   => open, -- hex1_di,
+-  -- hex2_di   => open, -- hex2_di,
+-  -- hex3_di   => open, -- hex3_di,
+-  --
+-  -- sw => sw(7 downto 0)
+-  --);
++  -- translate scancode to keys (MAME default keys, PS/2 set 2 codes)
++  -- F0 marks a release; E0 is ignored, as in kbd_joystick (keypad 8/2/4/6
++  -- also act as arrows, Right Ctrl/Alt as Left Ctrl/Alt).
++  process(clock_18)
++  begin
++    if rising_edge(clock_18) then
++      if kbd_intr = '1' then
++        if kbd_scancode = x"F0" then
++          kbd_rel <= '1';
++        elsif kbd_scancode /= x"E0" then
++          kbd_rel <= '0';
++          if kbd_scancode = x"75" then kbd_key(0)  <= not kbd_rel; end if; -- up arrow
++          if kbd_scancode = x"72" then kbd_key(1)  <= not kbd_rel; end if; -- down arrow
++          if kbd_scancode = x"6B" then kbd_key(2)  <= not kbd_rel; end if; -- left arrow
++          if kbd_scancode = x"74" then kbd_key(3)  <= not kbd_rel; end if; -- right arrow
++          if kbd_scancode = x"14" then kbd_key(4)  <= not kbd_rel; end if; -- left ctrl
++          if kbd_scancode = x"11" then kbd_key(5)  <= not kbd_rel; end if; -- left alt
++          if kbd_scancode = x"16" then kbd_key(6)  <= not kbd_rel; end if; -- 1
++          if kbd_scancode = x"1E" then kbd_key(7)  <= not kbd_rel; end if; -- 2
++          if kbd_scancode = x"2E" then kbd_key(8)  <= not kbd_rel; end if; -- 5
++          if kbd_scancode = x"36" then kbd_key(9)  <= not kbd_rel; end if; -- 6
++          if kbd_scancode = x"46" then kbd_key(10) <= not kbd_rel; end if; -- 9
++        end if;
++      end if;
++    end if;
++  end process;
+ 
++  -- merge keyboard, JXADC joystick (active low) and debounced buttons; player 2
++  -- mirrors player 1 as on the DE10-lite top
++  joyPCFRLDU(0) <= '0';
++  joyPCFRLDU(1) <= '0';
++  joyPCFRLDU(2) <= kbd_key(2) or not jxadc_s(1);              -- left  (JXADC2)
++  joyPCFRLDU(3) <= kbd_key(3) or not jxadc_s(0);              -- right (JXADC1)
++  joyPCFRLDU(4) <= kbd_key(4) or btn_db(4);                   -- fire : left ctrl or JXADC7 (debounced)
++  joyPCFRLDU(5) <= kbd_key(6) or btn_db(1);                   -- start 1 : 1 or btnL
++  joyPCFRLDU(6) <= kbd_key(7) or btn_db(0);                   -- start 2 : 2 or btnR
++  joyPCFRLDU(7) <= kbd_key(8) or kbd_key(9) or btn_db(3) or btn_db(2); -- coin : 5, 6, btnU, btnD
+ 
+   -- pwm sound output
++  pwm_prev <= '0' & pwm_accumulator(11 downto 0);
++  audio_x  <= '0' & audio & '0';
++
+   process(clock_18)
+   begin
+     if rising_edge(clock_18) then
+-      pwm_accumulator  <=  std_logic_vector(unsigned('0' & pwm_accumulator(11 downto 0)) + unsigned('0' & audio & '0'));
++      pwm_accumulator  <=  std_logic_vector(unsigned(pwm_prev) + unsigned(audio_x));
+     end if;
+   end process;
+ 
+-  pwm_audio_out_l <= pwm_accumulator(12);
+-  pwm_audio_out_r <= pwm_accumulator(12);
+-
++  O_PMODAMP2_AIN   <= pwm_accumulator(12);
++  O_PMODAMP2_SHUTD <= not sw(15); -- sw15 up = amp shut down (audio disabled)
++  O_PMODAMP2_GAIN  <= not sw(14); -- sw14 up = gain active (GAIN active low)
+ 
+ end struct;

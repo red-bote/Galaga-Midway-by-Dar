@@ -1,0 +1,26 @@
+# galaga.vhd: bring video_hs / video_vs out of the core (the gen_video hsync/vsync were
+# open) for the scandoubler.
+--- a/vhdl_galaga_rev_0_3_2018_05_06/rtl_dar/galaga.vhd
++++ b/vhdl_galaga_rev_0_3_2018_05_06/rtl_dar/galaga.vhd
+@@ -113,8 +113,8 @@
+   video_clk      : out std_logic;
+   video_csync    : out std_logic;
+   video_blankn   : out std_logic;
+--- video_hs     : out std_logic;
+--- video_vs     : out std_logic;
++  video_hs       : out std_logic;
++  video_vs       : out std_logic;
+   audio          : out std_logic_vector(9 downto 0);
+ 
+   b_test         : in std_logic;
+@@ -971,8 +971,8 @@
+   enable  => ena_vidgen,
+   hcnt    => hcnt,
+   vcnt    => vcnt,
+-  hsync   => open,
+-  vsync   => open,
++  hsync   => video_hs,
++  vsync   => video_vs,
+   csync   => video_csync,
+   blankn  => video_blankn
+ );

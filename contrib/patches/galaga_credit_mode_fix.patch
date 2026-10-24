@@ -1,0 +1,12 @@
+# galaga.vhd: re-enable the Namco 51XX credit mode on every coin edge so start inputs
+# work with credits available.
+--- a/vhdl_galaga_rev_0_3_2018_05_06/rtl_dar/galaga.vhd
++++ b/vhdl_galaga_rev_0_3_2018_05_06/rtl_dar/galaga.vhd
+@@ -845,6 +845,7 @@
+       start1_r <= start1;
+       start2_r <= start2;
+       if coin = '1' and coin_r = '0' then
++        cs51XX_credit_mode <= '1';
+         if credit_bcd_0 = "1001" then
+           if credit_bcd_1 /= "1001" then
+             credit_bcd_1 <= credit_bcd_1 + "0001";
