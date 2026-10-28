@@ -49,17 +49,21 @@ Keys follow the MAME defaults. Player 2 shares the player 1 controls.
 | amp gain |              | sw14 (up gain active)            |
 | audio    |              | sw15 (up disabled)               |
 
+Board buttons and JXADC fire are debounced 14 ms in the wrapper: the core counts every
+coin and fire edge, so contact bounce would add presses.
+
 ## Issues Addressed
 
 - Vivado rejects the background-palette xor width mismatch: operands parenthesized
   (`contrib/patches/galaga_bgpalette_xor_length_fix.patch`).
 - Start ignored with credits available: Namco 51XX credit mode re-enabled on each coin
   (`contrib/patches/galaga_credit_mode_fix.patch`).
+- Static tiles corrupted on some starts (core clock and scandoubler pixel enable from
+  separate dividers, sample phase varied per start): core, sound, stars and 54xx on one
+  36.864 MHz clock with clock enables, scandoubler sampling on the core pixel enable
+  (`contrib/patches/galaga_single_domain.patch`).
 - No sync for the scandoubler (core hsync/vsync left open): `video_hs` / `video_vs`
   brought out (`contrib/patches/galaga_vga_sync.patch`).
-- Joystick fired on press and again on release (the core latches every rising edge of
-  fire, so contact bounce counts as a press): JXADC fire and board buttons debounced
-  14 ms in the wrapper.
 - Vivado rejects MiST `scandoubler.v` as Verilog-2001 (local declarations in unnamed
   blocks, single-value array size): blocks named, full range declared
   (`contrib/basys3/mist_scandoubler.patch`).

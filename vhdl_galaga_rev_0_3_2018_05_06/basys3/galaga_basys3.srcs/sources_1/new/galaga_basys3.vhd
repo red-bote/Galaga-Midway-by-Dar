@@ -20,7 +20,8 @@
 --  31kHz VGA via the MiST scandoubler; sw13 = 15kHz TV (csync on hs)
 --  Buttons and JXADC fire debounced (14ms)
 --
--- Uses 1 MMCM (clk_wiz_0) for 36.864MHz (clock_18 = /2) from 100MHz
+-- Uses 1 MMCM (clk_wiz_0) for 36.864MHz from 100MHz, single clock domain (clock
+-- enables)
 --
 -- Board buttons :
 --   btnC : reset game
@@ -77,12 +78,11 @@ end galaga_basys3;
 
 architecture struct of galaga_basys3 is
 
-  signal clock_36  : std_logic;
-  signal clock_18  : std_logic := '0';
-  signal clock_18n : std_logic;
-  signal clock_12  : std_logic := '0'; -- scandoubler clk_sys (36.864MHz / 3)
-  signal slot      : std_logic_vector(2 downto 0) := "000";
-  signal db_in     : std_logic_vector(4 downto 0);
+  signal clk_core  : std_logic;
+  signal ce18      : std_logic := '0';
+  signal ce_pix    : std_logic;
+  signal ce_pix_d  : std_logic_vector(4 downto 0) := (others => '0');
+  signal db_in    : std_logic_vector(4 downto 0);
   signal btn_db    : std_logic_vector(4 downto 0) := (others => '0');
   type btn_cnt_t is array (0 to 4) of unsigned(17 downto 0);
   signal btn_cnt   : btn_cnt_t := (others => (others => '0'));
@@ -98,9 +98,9 @@ architecture struct of galaga_basys3 is
   signal vsync     : std_logic;
   signal tv15Khz_mode : std_logic;
 
-  signal clock_6   : std_logic := '0'; -- pixel enable (ce_x1)
+  signal ce_x1     : std_logic;
   signal scanlines : std_logic_vector(1 downto 0) := "00";
-  signal ce_x2     : std_logic := '1';
+  signal ce_x2     : std_logic;
   signal video_ri  : std_logic_vector(5 downto 0);
   signal video_gi  : std_logic_vector(5 downto 0);
   signal video_bi  : std_logic_vector(5 downto 0);
@@ -140,35 +140,31 @@ begin
 
   -- btnC resets the MMCM; the core is held in reset until the MMCM locks
   reset <= btnC or not mmcm_locked;
-  clock_18n <= not clock_18;
 
   tv15Khz_mode <= sw(13);
   b_test_in    <= B_TEST_DEFAULT xor sw(12); -- dip on spare sw12, down = default
 
-  -- Clock 36.864MHz, halved to clock_18 for galaga core
+  -- Clock 36.864MHz, the single clock of core, scandoubler, keyboard and PWM
   clocks : entity work.clk_wiz_0
   port map(
     clk_in1  => clk,
-    clk_out1 => clock_36,
+    clk_out1 => clk_core,
     reset    => btnC,
     locked   => mmcm_locked
   );
 
-  process (reset, clock_36)
+  -- ce18 : the core's 18.432MHz clock enable, every other clk_core cycle
+  process (clk_core)
   begin
-    if reset='1' then
-      clock_18  <= '0';
-    else
-      if rising_edge(clock_36) then
-        clock_18  <= not clock_18;
-      end if;
+    if rising_edge(clk_core) then
+      ce18 <= not ce18;
     end if;
   end process;
 
   -- synchronize asynchronous inputs to the core clock
-  process(clock_18)
+  process(clk_core)
   begin
-    if rising_edge(clock_18) then
+    if rising_edge(clk_core) then
       ps2_clk_meta <= ps2_clk;      ps2_clk_s <= ps2_clk_meta;
       ps2_dat_meta <= ps2_dat;      ps2_dat_s <= ps2_dat_meta;
       jxadc_meta   <= JXADC;        jxadc_s   <= jxadc_meta;
@@ -177,12 +173,12 @@ begin
     end if;
   end process;
 
-  -- debounce buttons and JXADC fire (pressed = '1'): stable for 2**18 clock_18 cycles
+  -- debounce buttons and JXADC fire (pressed = '1'): stable for 2**18 ce18 cycles
   -- (14 ms)
   db_in <= (not jxadc_s(4)) & btn_s;
-  process(clock_18)
+  process(clk_core)
   begin
-    if rising_edge(clock_18) then
+    if rising_edge(clk_core) and ce18 = '1' then
       for i in 0 to 4 loop
         if db_in(i) = btn_db(i) then
           btn_cnt(i) <= (others => '0');
@@ -199,7 +195,9 @@ begin
   -- Galaga
   galaga : entity work.galaga
   port map(
-    clock_18     => clock_18,
+    clk_core     => clk_core,
+    ce18         => ce18,
+    ce_pix       => ce_pix,
     reset        => reset,
   -- tv15Khz_mode => tv15Khz_mode,
     video_r      => r,
@@ -224,23 +222,16 @@ begin
     fire2        => joyPCFRLDU(4)
   );
 
-  -- scandoubler clocks : clock_12 (clk_sys) and clock_6 (ce_x1, 6.144MHz) from a
-  -- mod-6 counter on clock_36
-  process (clock_36)
+  -- scandoubler enables : ce_x1 is ce_pix delayed 2 cycles, sampling each pixel after
+  -- the core output settles; ce_x2 at twice that rate
+  process (clk_core)
   begin
-    if rising_edge(clock_36) then
-      clock_12 <= '0';
-      if slot = "101" then
-        slot <= (others => '0');
-      else
-        slot <= slot + '1';
-      end if;
-      if slot = "100" or slot = "001" then
-        clock_6  <= not clock_6;
-        clock_12 <= '1';
-      end if;
+    if rising_edge(clk_core) then
+      ce_pix_d <= ce_pix_d(3 downto 0) & ce_pix;
     end if;
   end process;
+  ce_x1 <= ce_pix_d(1);
+  ce_x2 <= ce_pix_d(1) or ce_pix_d(4);
 
   -- adapt video to 6bits/color for the scandoubler, black during blank
   video_ri <= r&"000"  when blankn = '1' else "000000";
@@ -250,10 +241,10 @@ begin
   -- 31kHz VGA : MiST scandoubler
   scandoubler : entity work.scandoubler
   port map (
-    clk_sys   => clock_12,
+    clk_sys   => clk_core,
     scanlines => scanlines,
-    ce_x1     => clock_6, -- pixel enable
-    ce_x2     => ce_x2,   -- clk_sys is 2 x pixel rate
+    ce_x1     => ce_x1,
+    ce_x2     => ce_x2,
     hs_in     => hsync,
     vs_in     => vsync,
     r_in      => video_ri,
@@ -280,7 +271,7 @@ begin
 
   keyboard : entity work.io_ps2_keyboard
   port map (
-    clk       => clock_18, -- use same clock as main core
+    clk       => clk_core, -- use same clock as main core
     kbd_clk   => ps2_clk_s,
     kbd_dat   => ps2_dat_s,
     interrupt => kbd_intr,
@@ -290,9 +281,9 @@ begin
   -- translate scancode to keys (MAME default keys, PS/2 set 2 codes)
   -- F0 marks a release; E0 is ignored, as in kbd_joystick (keypad 8/2/4/6
   -- also act as arrows, Right Ctrl/Alt as Left Ctrl/Alt).
-  process(clock_18)
+  process(clk_core)
   begin
-    if rising_edge(clock_18) then
+    if rising_edge(clk_core) then
       if kbd_intr = '1' then
         if kbd_scancode = x"F0" then
           kbd_rel <= '1';
@@ -329,9 +320,9 @@ begin
   pwm_prev <= '0' & pwm_accumulator(11 downto 0);
   audio_x  <= '0' & audio & '0';
 
-  process(clock_18)
+  process(clk_core)
   begin
-    if rising_edge(clock_18) then
+    if rising_edge(clk_core) and ce18 = '1' then
       pwm_accumulator  <=  std_logic_vector(unsigned(pwm_prev) + unsigned(audio_x));
     end if;
   end process;
