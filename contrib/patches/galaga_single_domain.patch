@@ -1,0 +1,677 @@
+# galaga.vhd, gen_ram.vhd, mb88.vhd, sound_machine.vhd, stars.vhd, stars_machine.vhd:
+# static tiles were corrupted on some starts: the core clock_18 and the scandoubler pixel
+# enable came from separate dividers, so the pixel sample phase varied per start and could
+# fall while the video mux output changes. The core, the 54xx MB88 core and the sound
+# and stars machines run on one clk_core (36.864 MHz) with clock enables (ce18,
+# ce18n) in place of clock_18 / clock_18n; ROM addresses are held per enable phase; the
+# pixel enable is brought out as ce_pix for the scandoubler.
+--- a/vhdl_galaga_rev_0_3_2018_05_06/rtl_dar/galaga.vhd
++++ b/vhdl_galaga_rev_0_3_2018_05_06/rtl_dar/galaga.vhd
+@@ -104,7 +104,9 @@
+ 
+ entity galaga is
+ port(
+-  clock_18     : in std_logic;
++  clk_core     : in std_logic; -- 36.864 MHz, single clock domain
++  ce18         : in std_logic; -- 18.432 MHz clock enable, every other clk_core cycle
++  ce_pix       : out std_logic; -- pixel strobe (6.144 MHz) for the scandoubler
+   reset        : in std_logic;
+ -- tv15Khz_mode : in std_logic;
+   video_r        : out std_logic_vector(2 downto 0);
+@@ -134,7 +136,25 @@
+ architecture struct of galaga is
+ 
+   signal reset_n: std_logic;
+-  signal clock_18n : std_logic;
++  signal ce18n     : std_logic;
++  signal ena_pix   : std_logic;
++  signal cpu1_ce   : std_logic;
++  signal cpu2_ce   : std_logic;
++  signal cpu3_ce   : std_logic;
++  signal mux_addr_h           : std_logic_vector(13 downto 0);
++  signal mux_addr_rom         : std_logic_vector(13 downto 0);
++  signal cs54xx_rom_addr_h    : std_logic_vector(10 downto 0);
++  signal cs54xx_rom_addr_rom  : std_logic_vector(10 downto 0);
++  signal bggraphx_addr_h      : std_logic_vector(11 downto 0);
++  signal bggraphx_addr_rom    : std_logic_vector(11 downto 0);
++  signal spgraphx_addr_h      : std_logic_vector(12 downto 0);
++  signal spgraphx_addr_rom    : std_logic_vector(12 downto 0);
++  signal bgpalette_addr_h     : std_logic_vector( 7 downto 0);
++  signal bgpalette_addr_rom   : std_logic_vector( 7 downto 0);
++  signal sppalette_addr_h     : std_logic_vector( 7 downto 0);
++  signal sppalette_addr_rom   : std_logic_vector( 7 downto 0);
++  signal rgb_palette_addr_h   : std_logic_vector( 4 downto 0);
++  signal rgb_palette_addr_rom : std_logic_vector( 4 downto 0);
+ 
+   signal hcnt : std_logic_vector(8 downto 0);
+   signal vcnt : std_logic_vector(8 downto 0);
+@@ -318,7 +338,12 @@
+ 
+ begin
+ 
+-  clock_18n <= not clock_18;
++  ce18n   <= not ce18;
++  ena_pix <= ena_vidgen and ce18;
++  ce_pix  <= ena_pix;
++  cpu1_ce <= cpu1_ena and ce18;
++  cpu2_ce <= cpu2_ena and ce18;
++  cpu3_ce <= cpu3_ena and ce18;
+   reset_n   <= not reset;
+ 
+   dip_switch_a <= "11110111"; --  cab:7 / na:6 / test:5 / freeze:4 / demo sound:3 / na:2 / difficulty:1-0
+@@ -340,9 +365,9 @@
+ 
+   -- enable signals are one slot early
+ 
+-  process (clock_18)
++  process (clk_core)
+   begin
+-    if rising_edge(clock_18) then
++    if rising_edge(clk_core) and ce18 = '1' then
+       ena_vidgen      <= '0';
+       ena_snd_machine <= '0';
+       cpu1_ena   <= '0';
+@@ -378,9 +403,9 @@
+   sprite_addr <= X"03"&'1' & sprite_num & sprite_state(0);
+   sprite_line <= wram2_do + vcnt(7 downto 0);
+ 
+-  process (clock_18, slot)
++  process (clk_core, slot)
+   begin
+-    if rising_edge(clock_18) then
++    if rising_edge(clk_core) and ce18 = '1' then
+       if hcnt = std_logic_vector(to_unsigned(191,9)) then
+         sprite_num   <= "000000";
+         sprite_state <= "000";
+@@ -501,9 +526,9 @@
+ -- slot  |0 |1 | 2 |3 |4 |5 | ...
+ -- hcnt  | 0 or 1  | 1 or 2 | ...
+ 
+-process (clock_18, slot)
++process (clk_core, slot)
+ begin
+-  if rising_edge(clock_18) then
++  if rising_edge(clk_core) and ce18 = '1' then
+     if slot = "011" and hcnt(2 downto 1) = "00" then
+       bgtile_num <= bgram_do;
+     end if;
+@@ -531,7 +556,8 @@
+ 
+ stars_data : entity work.stars
+ port map(
+-  clk       => clock_18n,
++  clk       => clk_core,
++  ce        => ce18n,
+   addr_set0 => stars_set0_addr,
+   data_set0 => stars_set0_data,
+   addr_set1 => stars_set1_addr,
+@@ -544,7 +570,8 @@
+ 
+ stars_machine_0 : entity work.stars_machine
+ port  map(
+-  clk              => clock_18,
++  clk              => clk_core,
++  ce               => ce18,
+   ena_hcnt         => ena_vidgen,
+   hcnt             => stars_hcnt,
+   vcnt             => stars_vcnt,
+@@ -556,7 +583,8 @@
+ 
+ stars_machine_1 : entity work.stars_machine
+ port  map(
+-  clk              => clock_18,
++  clk              => clk_core,
++  ce               => ce18,
+   ena_hcnt         => ena_vidgen,
+   hcnt             => stars_hcnt,
+   vcnt             => stars_vcnt,
+@@ -568,7 +596,8 @@
+ 
+ stars_machine_2 : entity work.stars_machine
+ port  map(
+-  clk              => clock_18,
++  clk              => clk_core,
++  ce               => ce18,
+   ena_hcnt         => ena_vidgen,
+   hcnt             => stars_hcnt,
+   vcnt             => stars_vcnt,
+@@ -580,7 +609,8 @@
+ 
+ stars_machine_3 : entity work.stars_machine
+ port  map(
+-  clk              => clock_18,
++  clk              => clk_core,
++  ce               => ce18,
+   ena_hcnt         => ena_vidgen,
+   hcnt             => stars_hcnt,
+   vcnt             => stars_vcnt,
+@@ -590,12 +620,12 @@
+   star_color       => star_color_set3
+ );
+ 
+-process (clock_18)
++process (clk_core)
+   subtype speed is integer range -3 to 3;
+   type speed_array is array(0 to 7) of speed;
+   variable speeds : speed_array := ( -1, -2, -3, 0, 3, 2, 1, 0 );
+ begin
+-  if rising_edge(clock_18) then
++  if rising_edge(clk_core) and ce18 = '1' then
+ 
+     if ena_vidgen = '1' then
+       if hcnt = std_logic_vector(to_unsigned(256+8,9)) then
+@@ -627,9 +657,9 @@
+ 
+ rgb_palette_addr <= ('0' & spbits_rd) when bgbits = "1111" else ('1' & bgbits);
+ 
+-process (clock_18, rgb_palette_addr)
++process (clk_core, rgb_palette_addr)
+ begin
+-  if rising_edge(clock_18)then
++  if rising_edge(clk_core) and ce18 = '1' then
+     if rgb_palette_addr(3 downto 0) = "1111" then
+       video_r <= star_color(1 downto 0) & "0";
+       video_g <= star_color(3 downto 2) & "0";
+@@ -648,7 +678,8 @@
+ 
+ sound_machine : entity work.sound_machine
+ port map(
+-  clock_18  => clock_18,
++  clk_core  => clk_core,
++  ce18      => ce18,
+   ena       => ena_snd_machine,
+   hcnt      => hcnt(5 downto 0),
+   cpu_addr  => mux_addr(3 downto 0),
+@@ -694,7 +725,7 @@
+ snd_ram_0_we <= '1' when mux_cpu_we = '1' and mux_addr(15 downto 11) = "01101"  and mux_addr(5 downto 4) = "00" else '0';
+ snd_ram_1_we <= '1' when mux_cpu_we = '1' and mux_addr(15 downto 11) = "01101"  and mux_addr(5 downto 4) = "01" else '0';
+ 
+-process (reset, clock_18n, io_we)
++process (reset, clk_core, io_we)
+   variable cs06XX_nmi_cnt : natural range 0 to 1000;
+ begin
+   if reset='1' then
+@@ -714,7 +745,7 @@
+     cs54xx_irq_cnt <= X"0";
+ 
+   else
+-    if rising_edge(clock_18n) then
++    if rising_edge(clk_core) and ce18n = '1' then
+       if latch_we ='1' and mux_addr(5 downto 4) = "10" then
+         if mux_addr(2 downto 0) = "000" then irq1_clr_n  <= mux_cpu_do(0); end if;
+         if mux_addr(2 downto 0) = "001" then irq2_clr_n  <= mux_cpu_do(0); end if;
+@@ -914,10 +945,10 @@
+ 
+ cs06XX_do <= cs06XX_di when mux_addr(8)= '0' else cs06XX_control;
+ 
+-process (clock_18, nmion_n)
++process (clk_core, nmion_n)
+ begin
+   if nmion_n = '1' then
+-  elsif rising_edge(clock_18) and ena_vidgen = '1' then
++  elsif rising_edge(clk_core) and ce18 = '1' and ena_vidgen = '1' then
+     if hcnt = "100000000" then
+       if vcnt = "001000000" or vcnt = "011000000" then cpu3_nmi_n <= '0'; end if;
+       if vcnt = "001000001" or vcnt = "011000001" then cpu3_nmi_n <= '1'; end if;
+@@ -967,8 +998,8 @@
+ -- video address/sync generator
+ gen_video : entity work.gen_video
+ port map(
+-  clk     => clock_18,
+-  enable  => ena_vidgen,
++  clk     => clk_core,
++  enable  => ena_pix,
+   hcnt    => hcnt,
+   vcnt    => vcnt,
+   hsync   => open,
+@@ -982,8 +1013,8 @@
+ generic map(Mode => 0, T2Write => 1, IOWait => 1)
+ port map(
+   RESET_n => reset_n,
+-  CLK_n   => clock_18,
+-  CLKEN   => cpu1_ena,
++  CLK_n   => clk_core,
++  CLKEN   => cpu1_ce,
+   WAIT_n  => '1',
+   INT_n   => cpu1_irq_n,
+   NMI_n   => cpu1_nmi_n,
+@@ -1007,8 +1038,8 @@
+ port map(
+ --  RESET_n => reset_n,
+   RESET_n => reset_cpu_n,
+-  CLK_n   => clock_18,
+-  CLKEN   => cpu2_ena,
++  CLK_n   => clk_core,
++  CLKEN   => cpu2_ce,
+   WAIT_n  => '1',
+   INT_n   => cpu2_irq_n,
+   NMI_n   => '1', --cpu_int_n,
+@@ -1032,8 +1063,8 @@
+ port map(
+ --  RESET_n => reset_n,
+   RESET_n => reset_cpu_n,
+-  CLK_n   => clock_18,
+-  CLKEN   => cpu3_ena,
++  CLK_n   => clk_core,
++  CLKEN   => cpu3_ce,
+   WAIT_n  => '1',
+   INT_n   => '1',
+   NMI_n   => cpu3_nmi_n,
+@@ -1055,7 +1086,9 @@
+ mb88_54xx : entity work.mb88
+ port map(
+   reset_n    => reset_cpu_n, --reset_n,
+-  clock      => clock_18,
++  clock      => clk_core,
++  ce         => ce18,
++  ce_n       => ce18n,
+   ena        => cs54xx_ena,
+ 
+   r0_port_in  => cs54xx_r0_port_in, -- pin 12,13,15,16
+@@ -1084,50 +1117,76 @@
+   rom_data  => cs54xx_rom_do
+ );
+ 
++-- ROM address hold: the generated ROMs sample every clk_core edge; between enabled
++-- edges they read the held address, so each output changes only on its own enable.
++process (clk_core)
++begin
++  if rising_edge(clk_core) then
++    if ce18n = '1' then
++      mux_addr_h         <= mux_addr(13 downto 0);
++      cs54xx_rom_addr_h  <= cs54xx_rom_addr;
++      bggraphx_addr_h    <= bggraphx_addr;
++      spgraphx_addr_h    <= spgraphx_addr;
++    end if;
++    if ce18 = '1' then
++      bgpalette_addr_h   <= bgpalette_addr;
++      sppalette_addr_h   <= sppalette_addr;
++      rgb_palette_addr_h <= rgb_palette_addr;
++    end if;
++  end if;
++end process;
++mux_addr_rom         <= mux_addr(13 downto 0) when ce18n = '1' else mux_addr_h;
++cs54xx_rom_addr_rom  <= cs54xx_rom_addr       when ce18n = '1' else cs54xx_rom_addr_h;
++bggraphx_addr_rom    <= bggraphx_addr         when ce18n = '1' else bggraphx_addr_h;
++spgraphx_addr_rom    <= spgraphx_addr         when ce18n = '1' else spgraphx_addr_h;
++bgpalette_addr_rom   <= bgpalette_addr        when ce18  = '1' else bgpalette_addr_h;
++sppalette_addr_rom   <= sppalette_addr        when ce18  = '1' else sppalette_addr_h;
++rgb_palette_addr_rom <= rgb_palette_addr      when ce18  = '1' else rgb_palette_addr_h;
++
+ -- cs54xx program ROM
+ cs54xx_prog : entity work.cs54xx_prog
+ port map(
+-  clk  => clock_18n,
+-  addr => cs54xx_rom_addr(9 downto 0),
++  clk  => clk_core,
++  addr => cs54xx_rom_addr_rom(9 downto 0),
+   data => cs54xx_rom_do
+ );
+ 
+ -- cpu1 program ROM
+ rom_cpu1 : entity work.galaga_cpu1
+ port map(
+-  clk  => clock_18n,
+-  addr => mux_addr(13 downto 0),
++  clk  => clk_core,
++  addr => mux_addr_rom(13 downto 0),
+   data => cpu1_rom_do
+ );
+ 
+ -- cpu2 program ROM
+ rom_cpu2 : entity work.galaga_cpu2
+ port map(
+-  clk  => clock_18n,
+-  addr => mux_addr(11 downto 0),
++  clk  => clk_core,
++  addr => mux_addr_rom(11 downto 0),
+   data => cpu2_rom_do
+ );
+ 
+ -- cpu3 program ROM
+ rom_cpu3 : entity work.galaga_cpu3
+ port map(
+-  clk  => clock_18n,
+-  addr => mux_addr(11 downto 0),
++  clk  => clk_core,
++  addr => mux_addr_rom(11 downto 0),
+   data => cpu3_rom_do
+ );
+ -- background graphics ROM
+ bg_graphics : entity work.bg_graphx
+ port map(
+-  clk  => clock_18n,
+-  addr => bggraphx_addr(11 downto 0),
++  clk  => clk_core,
++  addr => bggraphx_addr_rom(11 downto 0),
+   data => bggraphx_do
+ );
+ 
+ -- background palette ROM
+ bg_palette : entity work.bg_palette
+ port map(
+-  clk  => clock_18,
+-  addr => bgpalette_addr,
++  clk  => clk_core,
++  addr => bgpalette_addr_rom,
+   data => bgpalette_do
+ );
+ 
+@@ -1135,7 +1194,8 @@
+ bgram : entity work.gen_ram
+ generic map( dWidth => 8, aWidth => 11)
+ port map(
+-  clk  => clock_18n,
++  clk  => clk_core,
++  ce   => ce18n,
+   we   => bgram_we,
+   addr => mux_addr(10 downto 0),
+   d    => mux_cpu_do,
+@@ -1145,7 +1205,8 @@
+ wram1 : entity work.gen_ram
+ generic map( dWidth => 8, aWidth => 10)
+ port map(
+-  clk  => clock_18n,
++  clk  => clk_core,
++  ce   => ce18n,
+   we   => wram1_we,
+   addr => mux_addr(9 downto 0),
+   d    => mux_cpu_do,
+@@ -1155,7 +1216,8 @@
+ wram2 : entity work.gen_ram
+ generic map( dWidth => 8, aWidth => 10)
+ port map(
+-  clk  => clock_18n,
++  clk  => clk_core,
++  ce   => ce18n,
+   we   => wram2_we,
+   addr => mux_addr(9 downto 0),
+   d    => mux_cpu_do,
+@@ -1165,7 +1227,8 @@
+ wram3 : entity work.gen_ram
+ generic map( dWidth => 8, aWidth => 10)
+ port map(
+-  clk  => clock_18n,
++  clk  => clk_core,
++  ce   => ce18n,
+   we   => wram3_we,
+   addr => mux_addr(9 downto 0),
+   d    => mux_cpu_do,
+@@ -1176,7 +1239,8 @@
+ spram1 : entity work.gen_ram
+ generic map( dWidth => 4, aWidth => 9)
+ port map(
+-  clk  => clock_18,
++  clk  => clk_core,
++  ce   => ce18,
+   we   => spram1_we,
+   addr => spram1_addr,
+   d    => spram1_di,
+@@ -1187,7 +1251,8 @@
+ spram2 : entity work.gen_ram
+ generic map( dWidth => 4, aWidth => 9)
+ port map(
+-  clk  => clock_18,
++  clk  => clk_core,
++  ce   => ce18,
+   we   => spram2_we,
+   addr => spram2_addr,
+   d    => spram2_di,
+@@ -1197,24 +1262,24 @@
+ -- sprite graphics ROM
+ sp_graphics : entity work.sp_graphx
+ port map(
+-  clk  => clock_18n,
+-  addr => spgraphx_addr,
++  clk  => clk_core,
++  addr => spgraphx_addr_rom,
+   data => spgraphx_do
+ );
+ 
+ -- sprite palette ROM
+ sp_palette : entity work.sp_palette
+ port map(
+-  clk  => clock_18,
+-  addr => sppalette_addr,
++  clk  => clk_core,
++  addr => sppalette_addr_rom,
+   data => sppalette_do
+ );
+ 
+ -- RGB palette ROM
+ rgb_palette : entity work.rgb
+ port map(
+-  clk  => clock_18,
+-  addr => rgb_palette_addr,
++  clk  => clk_core,
++  addr => rgb_palette_addr_rom,
+   data => rgb_palette_do
+ );
+ 
+--- a/vhdl_galaga_rev_0_3_2018_05_06/rtl_dar/gen_ram.vhd
++++ b/vhdl_galaga_rev_0_3_2018_05_06/rtl_dar/gen_ram.vhd
+@@ -33,6 +33,7 @@
+ );
+ port (
+   clk : in std_logic;
++  ce : in std_logic := '1'; -- clock enable (write and read)
+   we : in std_logic;
+   addr : in std_logic_vector((aWidth-1) downto 0);
+   d : in std_logic_vector((dWidth-1) downto 0);
+@@ -61,7 +62,7 @@
+   process(clk)
+   begin
+     if rising_edge(clk) then
+-      if we = '1' then
++      if we = '1' and ce = '1' then
+         ram(to_integer(unsigned(addr))) <= d;
+       end if;
+     end if;
+@@ -76,7 +77,7 @@
+       --			qReg <= ram(to_integer(unsigned(rAddrReg)));
+       --			rAddrReg <= addr;
+       ----			qReg <= ram(to_integer(unsigned(addr)));
+-      q <= ram(to_integer(unsigned(addr)));
++      if ce = '1' then q <= ram(to_integer(unsigned(addr))); end if;
+     end if;
+   end process;
+   --q <= ram(to_integer(unsigned(addr)));
+--- a/vhdl_galaga_rev_0_3_2018_05_06/rtl_dar/mb88.vhd
++++ b/vhdl_galaga_rev_0_3_2018_05_06/rtl_dar/mb88.vhd
+@@ -33,6 +33,8 @@
+ entity mb88 is
+ port(
+   clock     : in std_logic;
++  ce        : in std_logic; -- clock enable, rising-edge phase
++  ce_n      : in std_logic; -- clock enable, falling-edge phase
+   ena       : in std_logic;
+   reset_n   : in std_logic;
+ 
+@@ -67,7 +69,6 @@
+ architecture struct of mb88 is
+ 
+   signal reset   : std_logic;
+-  signal clock_n : std_logic;
+ 
+   signal ram_addr : std_logic_vector(6 downto 0);
+   signal ram_we   : std_logic;
+@@ -191,7 +192,6 @@
+ 
+ begin
+ 
+-  clock_n <= not clock;
+   reset   <= not reset_n;
+ 
+   rom_addr <= r_pa & r_pc;
+@@ -337,9 +337,9 @@
+     imm_x7_z <= '1' when rom_data(2 downto 0) =  "000" else '0';
+     imm_xF_z <= '1' when rom_data(3 downto 0) = "0000" else '0';
+ 
+-    process (clock_n)  -- register data before memory value update at middle cycle
++    process (clock)  -- register data before memory value update at middle cycle
+     begin
+-      if rising_edge(clock_n) then
++      if rising_edge(clock) and ce_n = '1' then
+         mem <= ram_do;
+         if ram_do = X"0" then mem_z  <= '1'; else mem_z  <= '0'; end if;
+         if m_p1 = X"0"   then m_p1_z <= '1';  else m_p1_z <= '0'; end if;
+@@ -351,7 +351,7 @@
+ 
+     process (clock)
+     begin
+-      if rising_edge(clock) then
++      if rising_edge(clock) and ce = '1' then
+         --  mem <= ram_do;
+         --	if ram_do = X"0" then mem_z <= '1'; else mem_z <= '0'; end if;
+ 
+@@ -566,9 +566,9 @@
+     end process;
+ 
+     -- RAM
+-    process(clock_n)
++    process(clock)
+     begin
+-      if rising_edge(clock_n) then
++      if rising_edge(clock) and ce_n = '1' then
+         if ram_we = '1' then
+           ram(to_integer(unsigned(ram_addr))) <= ram_di;
+         end if;
+--- a/vhdl_galaga_rev_0_3_2018_05_06/rtl_dar/sound_machine.vhd
++++ b/vhdl_galaga_rev_0_3_2018_05_06/rtl_dar/sound_machine.vhd
+@@ -17,7 +17,8 @@
+ 
+ entity sound_machine is
+ port(
+-  clock_18     : in std_logic;
++  clk_core     : in std_logic; -- 36.864 MHz
++  ce18         : in std_logic; -- 18.432 MHz clock enable
+   hcnt         : in std_logic_vector(5 downto 0);
+   ena          : in std_logic;
+   cpu_addr     : in std_logic_vector(3 downto 0);
+@@ -30,7 +31,11 @@
+ 
+ architecture struct of sound_machine is
+ 
+-  signal clock_18n : std_logic;
++  signal ce18n : std_logic;
++  signal snd_seq_addr_h     : std_logic_vector(7 downto 0);
++  signal snd_seq_addr_rom   : std_logic_vector(7 downto 0);
++  signal snd_samples_addr_h   : std_logic_vector(7 downto 0);
++  signal snd_samples_addr_rom : std_logic_vector(7 downto 0);
+   signal snd_ram_addr : std_logic_vector(3 downto 0);
+   signal snd_ram_di   : std_logic_vector(3 downto 0);
+   signal snd_ram_0_we : std_logic;
+@@ -57,7 +62,7 @@
+ 
+ begin
+ 
+-  clock_18n <= not clock_18;
++  ce18n <= not ce18;
+ 
+   snd_seq_addr <= '0' & not ram_0_we & hcnt(5 downto 0);
+ 
+@@ -69,9 +74,9 @@
+ 
+   sum <= ('0' & snd_ram_0_do) + ('0' & snd_ram_1_do) + ("0000" & sum_r(4));
+ 
+-  process (clock_18)
++  process (clk_core)
+   begin
+-    if rising_edge(clock_18) and ena = '1' then
++    if rising_edge(clk_core) and ce18 = '1' and ena = '1' then
+       if snd_seq_do(3) = '0' then
+         sum_r <= (others => '0');
+         sum_3_rr <= '0';
+@@ -108,7 +113,8 @@
+   sound_ram_0 : entity work.gen_ram
+   generic map( dWidth => 4, aWidth => 4)
+   port map(
+-    clk  => clock_18n,
++    clk  => clk_core,
++    ce   => ce18n,
+     we   => snd_ram_0_we,
+     addr => snd_ram_addr,
+     d    => snd_ram_di,
+@@ -119,26 +125,39 @@
+   sound_ram_1 : entity work.gen_ram
+   generic map( dWidth => 4, aWidth => 4)
+   port map(
+-    clk  => clock_18n,
++    clk  => clk_core,
++    ce   => ce18n,
+     we   => snd_ram_1_we,
+     addr => snd_ram_addr,
+     d    => snd_ram_di,
+     q    => snd_ram_1_do
+   );
+ 
++  -- ROM address hold: the ROMs sample every clk_core edge; between enabled edges they
++  -- read the held address, so their output changes only on a ce18n enable.
++  process (clk_core)
++  begin
++    if rising_edge(clk_core) and ce18n = '1' then
++      snd_samples_addr_h <= snd_samples_addr;
++      snd_seq_addr_h     <= snd_seq_addr;
++    end if;
++  end process;
++  snd_samples_addr_rom <= snd_samples_addr when ce18n = '1' else snd_samples_addr_h;
++  snd_seq_addr_rom     <= snd_seq_addr     when ce18n = '1' else snd_seq_addr_h;
++
+   -- sound samples ROM
+   sound_samples : entity work.sound_samples
+   port map(
+-    clk  => clock_18n,
+-    addr => snd_samples_addr,
++    clk  => clk_core,
++    addr => snd_samples_addr_rom,
+     data => snd_samples_do
+   );
+ 
+   -- sound compute sequencer ROM
+   sound_seq : entity work.sound_seq
+   port map(
+-    clk  => clock_18n,
+-    addr => snd_seq_addr,
++    clk  => clk_core,
++    addr => snd_seq_addr_rom,
+     data => snd_seq_do
+   );
+ 
+--- a/vhdl_galaga_rev_0_3_2018_05_06/rtl_dar/stars.vhd
++++ b/vhdl_galaga_rev_0_3_2018_05_06/rtl_dar/stars.vhd
+@@ -32,6 +32,7 @@
+ entity stars is
+ port (
+   clk  : in  std_logic;
++  ce   : in  std_logic; -- clock enable
+   addr_set0 : in  std_logic_vector( 6 downto 0);
+   data_set0 : out std_logic_vector(15 downto 0);
+   addr_set1 : in  std_logic_vector( 6 downto 0);
+@@ -545,7 +546,7 @@
+ begin
+   process(clk)
+   begin
+-    if rising_edge(clk) then
++    if rising_edge(clk) and ce = '1' then
+       data_set0 <= data0(to_integer(unsigned(addr_set0)));
+       data_set1 <= data1(to_integer(unsigned(addr_set1)));
+       data_set2 <= data2(to_integer(unsigned(addr_set2)));
+--- a/vhdl_galaga_rev_0_3_2018_05_06/rtl_dar/stars_machine.vhd
++++ b/vhdl_galaga_rev_0_3_2018_05_06/rtl_dar/stars_machine.vhd
+@@ -35,6 +35,7 @@
+ entity stars_machine is
+ port (
+   clk              : in  std_logic;
++  ce               : in  std_logic; -- clock enable
+   ena_hcnt         : in  std_logic;
+   hcnt             : in  std_logic_vector( 8 downto 0);
+   vcnt             : in  std_logic_vector( 8 downto 0);
+@@ -59,7 +60,7 @@
+ 
+   process (clk)
+   begin
+-    if rising_edge(clk) then
++    if rising_edge(clk) and ce = '1' then
+       -- chercher la ligne suivante
+       if stars_state = "000" then
+         if stars_set_data(15) = '1' then
