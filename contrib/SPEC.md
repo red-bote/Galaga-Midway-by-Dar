@@ -159,19 +159,39 @@ Vivado unchanged.
 - Inputs (PS/2, joystick, buttons) through 2-FF synchronizers on the core clock: two
   flip-flops in series per asynchronous input (`*_meta`, `*_s`, `ASYNC_REG`), so a
   metastable first stage has a clock period to settle before the core samples it.
-- Slide switches are not synchronized: sw14/sw15 drive the PmodAMP2 pins directly (no
-  clocked logic); sw13 and the DIP switches are static settings, changed with the game
-  idle.
-- Pmod headers: Atari joystick on JXADC pins 1/2/3/4/7 = right/left/down/up/fire
-  (wrapper port `JXADC(4 downto 0)`, active low, XDC pull-ups); PmodAMP2 on JA pins
-  1/2/4 = AIN/GAIN/SHUTD. A game without a direction uses that pin for an extra button.
+- Slide switches are not synchronized: sw15 drives the PmodAMP2 `SHUTD` pin directly (no
+  clocked logic); sw13, sw14 and the DIP switches are static settings, changed with the
+  game idle.
+- Pmod headers: Atari joystick on JA pins 1/2/3/4/7 = right/left/down/up/fire
+  (wrapper port `joy_n(4 downto 0)`, active low, XDC pull-ups); PmodAMP2 on JXADC pins
+  1/2/4 (top row) = AIN/GAIN/SHUTD. A game without a direction uses that pin for an
+  extra button.
+- Header change (user, 2026-11-03): joystick moved from JXADC to JA, PmodAMP2 from JA
+  1/2/4 to JXADC 1/2/4. Refactor: the wrapper port `JXADC` was renamed to the
+  header-neutral `joy_n` (synchronizer `stick_meta`/`stick_s`), so a later header move
+  changes only the XDC and the docs. Bit order unchanged.
+- Correction (user, 2026-11-09): PmodAMP2 on the JXADC top row (pins 1/2/4 = J3/L3/N2),
+  not the bottom row (7/8/10 = K3/M3/N1) as first implemented.
 - PmodAMP2: sw15 up = audio disabled (`O_PMODAMP2_SHUTD <= not sw(15)`, SHUTD active
-  low); sw14 up = gain active (`O_PMODAMP2_GAIN <= not sw(14)`, GAIN active low).
+  low); gain fixed at 6 dB (`O_PMODAMP2_GAIN <= '1'`).
+- Switches: sw15 audio off, sw14 scanlines, sw13 display (reserved on every machine);
+  core DIPs from sw0 upward; machine-specific options from sw12 downward; switch down =
+  core default (the value the board top drives), up inverts it.
+- Scanlines: sw14 up halves alternate output lines in 31 kHz mode (sw13 down); no effect
+  at 15 kHz. MiST `scandoubler.v` machines: `scanlines <= sw(14) & '0'` (`"10"` = 50%).
+  Native-doubler machines (`tv15Khz_mode`): wrapper process on the core clock toggles a
+  `scanline` flag on each rising `hsync` edge, clears it on each `vsync` edge, and shifts
+  the 4-bit RGB right one bit when `sw(14) and scanline and not sw(13)`.
+- Switch layout change (user, 2026-11-04): sw14 changed from PmodAMP2 gain to scanlines;
+  gain fixed at 6 dB.
 - Roms, generated PROM VHDL and bitstreams are never committed or distributed.
-- Patches keep changes minimal (no reformatting, renames or reordering beyond need).
-- The Basys 3 wrapper minimizes textual difference from the board top: its comments
-  are kept; added comments only for significant findings or deviations from the board
-  top, terse, at the logic they describe; no dates or change history (git holds that).
+- Patches against upstream sources keep changes minimal (no reformatting, renames or
+  reordering beyond need).
+- The Basys 3 wrapper is authored here and fully formatted with
+  `contrib/tools/dev/vhdl_formatter.py` (default options; `--check` clean; user,
+  2026-11-10). The board top's comments are kept; added comments only for significant
+  findings or deviations from the board top, terse, at the logic they describe; no dates
+  or change history (git holds that).
   Exception, the header: the wrapper is its own release (`release rev 01 : initial Basys 3
   release`), credits the board top by file name and author, and points to it for its
   history; the board top's release history is not copied. Its license notice stays.

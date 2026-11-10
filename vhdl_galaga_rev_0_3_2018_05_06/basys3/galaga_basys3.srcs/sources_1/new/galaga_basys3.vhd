@@ -15,10 +15,11 @@
 ---------------------------------------------------------------------------------
 -- Main features :
 --  PS2 keyboard input @onboard USB HID (PS/2 emulation)
---  Joystick input     @JXADC pins 1/2/7 = right/left/fire (active low)
---  Audio pwm output   @PmodAMP2 on JA pins 1/2/4; sw15 = audio disable, sw14 = gain
+--  Joystick input     @JA pins 1/2/7 = right/left/fire (active low)
+--  Audio pwm output   @PmodAMP2 on JXADC pins 1/2/4; sw15 = audio disable
+--  Scanlines          sw14 = alternate lines at 50% (31kHz only)
 --  31kHz VGA via the MiST scandoubler; sw13 = 15kHz TV (csync on hs)
---  Buttons and JXADC fire debounced (14ms)
+--  Buttons and JA fire debounced (14ms)
 --
 -- Uses 1 MMCM (clk_wiz_0) for 36.864MHz from 100MHz, single clock domain (clock
 -- enables)
@@ -67,7 +68,7 @@ port(
   vga_hs    : out std_logic;
   vga_vs    : out std_logic;
 
-  JXADC            : in  std_logic_vector(4 downto 0);
+  joy_n            : in  std_logic_vector(4 downto 0);
   ps2_clk          : in  std_logic;
   ps2_dat          : in  std_logic;
   O_PMODAMP2_AIN   : out std_logic;
@@ -99,7 +100,7 @@ architecture struct of galaga_basys3 is
   signal tv15Khz_mode : std_logic;
 
   signal ce_x1     : std_logic;
-  signal scanlines : std_logic_vector(1 downto 0) := "00";
+  signal scanlines : std_logic_vector(1 downto 0);
   signal ce_x2     : std_logic;
   signal video_ri  : std_logic_vector(5 downto 0);
   signal video_gi  : std_logic_vector(5 downto 0);
@@ -119,11 +120,11 @@ architecture struct of galaga_basys3 is
   -- 2-FF synchronizers for the asynchronous inputs
   signal ps2_clk_meta, ps2_clk_s : std_logic := '1';
   signal ps2_dat_meta, ps2_dat_s : std_logic := '1';
-  signal jxadc_meta, jxadc_s     : std_logic_vector(4 downto 0) := (others => '1');
+  signal stick_meta, stick_s     : std_logic_vector(4 downto 0) := (others => '1');
   signal btn_meta, btn_s         : std_logic_vector(3 downto 0) := (others => '0'); -- U, D, L, R
   attribute ASYNC_REG : string;
   attribute ASYNC_REG of ps2_clk_meta, ps2_clk_s, ps2_dat_meta, ps2_dat_s : signal is "TRUE";
-  attribute ASYNC_REG of jxadc_meta, jxadc_s, btn_meta, btn_s : signal is "TRUE";
+  attribute ASYNC_REG of stick_meta, stick_s, btn_meta, btn_s : signal is "TRUE";
 
   signal kbd_intr      : std_logic;
   signal kbd_scancode  : std_logic_vector(7 downto 0);
@@ -142,6 +143,7 @@ begin
   reset <= btnC or not mmcm_locked;
 
   tv15Khz_mode <= sw(13);
+  scanlines    <= sw(14) & '0'; -- sw14 up = 50% scanlines (31 kHz)
   b_test_in    <= B_TEST_DEFAULT xor sw(12); -- dip on spare sw12, down = default
 
   -- Clock 36.864MHz, the single clock of core, scandoubler, keyboard and PWM
@@ -167,15 +169,15 @@ begin
     if rising_edge(clk_core) then
       ps2_clk_meta <= ps2_clk;      ps2_clk_s <= ps2_clk_meta;
       ps2_dat_meta <= ps2_dat;      ps2_dat_s <= ps2_dat_meta;
-      jxadc_meta   <= JXADC;        jxadc_s   <= jxadc_meta;
+      stick_meta   <= joy_n;        stick_s   <= stick_meta;
       btn_meta     <= btnU & btnD & btnL & btnR;
       btn_s        <= btn_meta;
     end if;
   end process;
 
-  -- debounce buttons and JXADC fire (pressed = '1'): stable for 2**18 ce18 cycles
+  -- debounce buttons and JA fire (pressed = '1'): stable for 2**18 ce18 cycles
   -- (14 ms)
-  db_in <= (not jxadc_s(4)) & btn_s;
+  db_in <= (not stick_s(4)) & btn_s;
   process(clk_core)
   begin
     if rising_edge(clk_core) and ce18 = '1' then
@@ -305,13 +307,13 @@ begin
     end if;
   end process;
 
-  -- merge keyboard, JXADC joystick (active low) and debounced buttons; player 2
+  -- merge keyboard, JA joystick (active low) and debounced buttons; player 2
   -- mirrors player 1 as on the DE10-lite top
   joyPCFRLDU(0) <= '0';
   joyPCFRLDU(1) <= '0';
-  joyPCFRLDU(2) <= kbd_key(2) or not jxadc_s(1);              -- left  (JXADC2)
-  joyPCFRLDU(3) <= kbd_key(3) or not jxadc_s(0);              -- right (JXADC1)
-  joyPCFRLDU(4) <= kbd_key(4) or btn_db(4);                   -- fire : left ctrl or JXADC7 (debounced)
+  joyPCFRLDU(2) <= kbd_key(2) or not stick_s(1);              -- left  (JA2)
+  joyPCFRLDU(3) <= kbd_key(3) or not stick_s(0);              -- right (JA1)
+  joyPCFRLDU(4) <= kbd_key(4) or btn_db(4);                   -- fire : left ctrl or JA7 (debounced)
   joyPCFRLDU(5) <= kbd_key(6) or btn_db(1);                   -- start 1 : 1 or btnL
   joyPCFRLDU(6) <= kbd_key(7) or btn_db(0);                   -- start 2 : 2 or btnR
   joyPCFRLDU(7) <= kbd_key(8) or kbd_key(9) or btn_db(3) or btn_db(2); -- coin : 5, 6, btnU, btnD
@@ -329,6 +331,6 @@ begin
 
   O_PMODAMP2_AIN   <= pwm_accumulator(12);
   O_PMODAMP2_SHUTD <= not sw(15); -- sw15 up = amp shut down (audio disabled)
-  O_PMODAMP2_GAIN  <= not sw(14); -- sw14 up = gain active (GAIN active low)
+  O_PMODAMP2_GAIN  <= '1';        -- fixed 6 dB gain
 
 end struct;
