@@ -1,6 +1,6 @@
 This license covers only the files and changes authored for the Basys 3 port:
-Makefile, machine.conf, .gitignore, README.md, contrib/SPEC.md, contrib/tools/,
-and the changes recorded in contrib/patches/ and contrib/basys3/. It does not
+Makefile, machine.conf, .gitignore, README.md, contrib/tools/, and the changes
+recorded in contrib/patches/ and contrib/basys3/. It does not
 cover the DarFPGA sources (<SRC_DIR>/, including the patched files and the
 Basys 3 wrapper derived from the upstream board top) or the third-party HDL
 in contrib/third_party/, which remain under their own terms; see README.md,

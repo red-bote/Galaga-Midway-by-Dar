@@ -1,5 +1,4 @@
 # Basys3 port driver (generic; per-machine values in machine.conf).
-# See contrib/SPEC.md.
 #
 # User:  make roms bitstream load clean (open: Vivado GUI)
 # Dev:   make pristine baseline patch project diffs check

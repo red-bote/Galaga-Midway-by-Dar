@@ -1,7 +1,7 @@
 #!/bin/bash
-# Remove build outputs (SPEC.md section 4): Vivado run/cache directories,
-# generated PROM VHDL with the compiled make_vhdl_prom (proms/bin/) and the
-# unzipped roms. Tracked files are untouched.
+# Remove build outputs: Vivado run/cache directories, generated PROM VHDL with the
+# compiled make_vhdl_prom (proms/bin/) and the unzipped roms. Tracked files are
+# untouched.
 
 set -euo pipefail
 

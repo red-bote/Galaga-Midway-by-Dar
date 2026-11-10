@@ -1,6 +1,6 @@
-# Generate the clk_wiz_0 MMCM (100 MHz in, one output) in a scratch project
-# (SPEC.md section 3, step 7.4). project.sh copies clk_wiz_0.v and
-# clk_wiz_0_clk_wiz.v from <work_dir>/clk_wiz_0/ into the project.
+# Generate the clk_wiz_0 MMCM (100 MHz in, one output) in a scratch project. project.sh
+# copies clk_wiz_0.v and clk_wiz_0_clk_wiz.v from <work_dir>/clk_wiz_0/ into the
+# project.
 #
 # Usage: vivado -mode batch -source clk_wiz.tcl -tclargs <work_dir> <part> <out_mhz>
 

@@ -1,7 +1,7 @@
 #!/bin/bash
-# Generate the Vivado project from its originals and contrib/basys3/*.patch
-# (SPEC.md section 3, step 7). Vivado runs from /tmp. A missing patch is
-# skipped with a notice (first-time authoring; see diffs.sh).
+# Generate the Vivado project from its originals and contrib/basys3/*.patch. Vivado runs
+# from /tmp. A missing patch is skipped with a notice (first-time authoring; see
+# diffs.sh).
 
 set -euo pipefail
 

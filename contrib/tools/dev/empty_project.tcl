@@ -1,5 +1,4 @@
-# Create an empty Basys3 Vivado project: the baseline the .xpr patch applies to
-# (SPEC.md section 3, step 7.1).
+# Create an empty Basys3 Vivado project: the baseline the .xpr patch applies to.
 #
 # Usage: vivado -mode batch -source empty_project.tcl \
 #            -tclargs <proj_dir> <name> <part>

@@ -1,7 +1,7 @@
 #!/bin/bash
-# Open the tracked project in the Vivado GUI (SPEC.md section 4). Vivado runs
-# from /tmp. Path is localized before the open and Path/Id are normalized after
-# exit; project edits made in the GUI are kept (dev: follow with make diffs).
+# Open the tracked project in the Vivado GUI. Vivado runs from /tmp. Path is localized
+# before the open and Path/Id are normalized after exit; project edits made in the GUI
+# are kept (dev: follow with make diffs).
 
 set -euo pipefail
 

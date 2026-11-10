@@ -1,4 +1,4 @@
-# Build the bitstream from the tracked project (SPEC.md section 4).
+# Build the bitstream from the tracked project.
 #
 # Usage: vivado -mode batch -source build.tcl -tclargs <xpr>
 

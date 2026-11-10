@@ -1,8 +1,8 @@
 #!/bin/bash
-# Normalize one text file in place (SPEC.md section 3, step 4): CRLF/CR -> LF, trailing
-# whitespace stripped, final newline; .vhd re-indented by vhdl_formatter.py (2-space, no
-# align). Check: content with all whitespace removed is unchanged, else the file is
-# restored and the script fails. Binary files are left alone. Idempotent.
+# Normalize one text file in place: CRLF/CR -> LF, trailing whitespace stripped, final
+# newline; .vhd re-indented by vhdl_formatter.py (2-space, no align). Check: content
+# with all whitespace removed is unchanged, else the file is restored and the script
+# fails. Binary files are left alone. Idempotent.
 #
 # Usage: normalize_file.sh <file>
 

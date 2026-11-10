@@ -1,5 +1,5 @@
 #!/bin/bash
-# Fetch the upstream source archive into dloads/ (SPEC.md section 3, step 2).
+# Fetch the upstream source archive into dloads/.
 # Reuses a cached copy only if its SHA-256 matches ZIP_SHA256; otherwise
 # downloads ZIP_URL and hard-fails on a hash mismatch.
 

@@ -1,11 +1,11 @@
 #!/bin/bash
-# Normalize an extracted source tree (SPEC.md section 3, step 4). Only the files the
-# patches modify are normalized: the targets of contrib/patches/*.patch
-# (normalize_file.sh: LF, trailing whitespace, final newline, .vhd re-indent). Every
-# other upstream file, including the board top <BOARD_TOP> (project.sh and diffs.sh
-# normalize a temporary copy of it), is left as shipped, so the published tree differs
-# from the zip only where the port changes it. File names containing spaces are
-# renamed in the whole tree, spaces to '_' (a collision is an error). Idempotent.
+# Normalize an extracted source tree. Only the files the patches modify are normalized:
+# the targets of contrib/patches/*.patch (normalize_file.sh: LF, trailing whitespace,
+# final newline, .vhd re-indent). Every other upstream file, including the board top
+# <BOARD_TOP> (project.sh and diffs.sh normalize a temporary copy of it), is left as
+# shipped, so the published tree differs from the zip only where the port changes it.
+# File names containing spaces are renamed in the whole tree, spaces to '_' (a collision
+# is an error). Idempotent.
 #
 # Usage: normalize.sh <dir>   (<dir> = <SRC_DIR>, as extracted under the repo root)
 

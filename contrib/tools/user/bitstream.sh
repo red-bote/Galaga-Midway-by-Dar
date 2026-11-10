@@ -1,8 +1,7 @@
 #!/bin/bash
-# Build the bitstream from the tracked .xpr (SPEC.md section 4). Vivado runs
-# from /tmp. Path is localized before the open (see localize_xpr.sh); the tracked
-# .xpr is restored afterwards: Vivado rewrites it on open/run (Path, run state),
-# which is not a functional change.
+# Build the bitstream from the tracked .xpr. Vivado runs from /tmp. Path is localized
+# before the open (see localize_xpr.sh); the tracked .xpr is restored afterwards: Vivado
+# rewrites it on open/run (Path, run state), which is not a functional change.
 
 set -euo pipefail
 

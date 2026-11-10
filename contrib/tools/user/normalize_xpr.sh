@@ -1,8 +1,7 @@
 #!/bin/bash
-# Replace the run-specific fields Vivado writes into a new .xpr (SPEC.md
-# section 3, step 7.1): the absolute Path attribute of <Project> and the random
-# project GUID (<Option Name="Id">). Fixed placeholders make the empty project a
-# stable baseline for the .xpr patch.
+# Replace the run-specific fields Vivado writes into a new .xpr: the absolute Path
+# attribute of <Project> and the random project GUID (<Option Name="Id">). Fixed
+# placeholders make the empty project a stable baseline for the .xpr patch.
 #
 # Usage: normalize_xpr.sh <xpr>
 

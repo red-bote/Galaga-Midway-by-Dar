@@ -1,5 +1,5 @@
 #!/bin/bash
-# Generate the PROM VHDL from the romset (SPEC.md section 4):
+# Generate the PROM VHDL from the romset:
 #   1. compile the upstream make_vhdl_prom (tools/tools_prom_src/src/) into
 #      <SRC_DIR>/<PRJ_DIR>/proms/bin/;
 #   2. unzip each romset into <SRC_DIR>/<UNZIP_DIR>/: ROMSET is a comma-separated

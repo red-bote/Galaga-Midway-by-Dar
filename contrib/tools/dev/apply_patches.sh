@@ -1,8 +1,7 @@
 #!/bin/bash
-# Apply contrib/patches/*.patch in place to the upstream tree (SPEC.md section 3,
-# step 6). Paths in the patches are a/<SRC_DIR>/..., applied with -p1 from the
-# repo root. A patch that already reverse-applies is skipped; one that applies
-# neither way fails.
+# Apply contrib/patches/*.patch in place to the upstream tree. Paths in the patches are
+# a/<SRC_DIR>/..., applied with -p1 from the repo root. A patch that already
+# reverse-applies is skipped; one that applies neither way fails.
 
 set -euo pipefail
 

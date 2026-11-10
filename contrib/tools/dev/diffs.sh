@@ -1,7 +1,7 @@
 #!/bin/bash
 # Regenerate contrib/basys3/*.patch from the tracked project files against their
-# originals (SPEC.md section 3, step 8). The .xpr baseline is a freshly created
-# and normalized empty project (Vivado runs from /tmp).
+# originals. The .xpr baseline is a freshly created and normalized empty project (Vivado
+# runs from /tmp).
 
 set -euo pipefail
 
